@@ -1,0 +1,395 @@
+Code: Module 1 ---Student.java
+Represents a student with roll number, name, and department details.
+package com.example;
+
+
+public class Student { private int id;
+private String rollNo; private String name; private String department;
+
+public Student(String rollNo, String name, String department) { this.rollNo = rollNo;
+this.name = name;
+
+this.department = department;
+}
+
+
+public Student(int id, String rollNo, String name, String department) { this.id = id;
+this.rollNo = rollNo; this.name = name; this.department = department;
+}
+
+
+public int getId() { return id; }
+public void setId(int id) { this.id = id; }
+
+
+public String getRollNo() { return rollNo; }
+public void setRollNo(String rollNo) { this.rollNo = rollNo; }
+
+
+public String getName() { return name; }
+public void setName(String name) { this.name = name; }
+
+
+public String getDepartment() { return department; }
+public void setDepartment(String department) { this.department = department; }
+ 
+@Override
+public String toString() {
+return rollNo + " | " + name + " | " + department;
+}
+}
+
+Handles DB connection creation using JDBC.  package com.example; 
+import java.sql.Connection; import java.sql.DriverManager; import java.sql.SQLException; public class DBUtil {
+private static final String URL =
+"jdbc:mysql://localhost:3306/exam_hall_db?useSSL=false&allowPublicKeyRetrieval=true&s erverTi mezone=UTC";
+private static final String USER = "root"; // your DB user
+private static final String PASS = "12345"; // your MySQL password public static Connection getConnection() throws SQLException { return DriverManager.getConnection(URL, USER, PASS);
+}
+}
+StudentDAO.java
+Performs database operations (CRUD) for the students table.
+package com.example; import java.sql.*;
+ 
+import java.util.ArrayList; import java.util.List; public class StudentDAO {
+
+public void addStudent(Student s) {
+final String sql = "INSERT INTO students (roll_no, name, section) VALUES (?, ?, ?)"; try (Connection conn = DBUtil.getConnection();
+PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+
+ps.setString(1, s.getRollNo()); ps.setString(2, s.getName()); ps.setString(3, s.getDepartment()); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) s.setId(rs.getInt(1));
+}
+} catch (SQLException e) { e.printStackTrace();
+}
+}
+
+
+public List<Student> getAllStudents() { List<Student> list = new ArrayList<>();
+final String sql = "SELECT student_id, roll_no, name, section FROM students ORDER BY student_id";
+try (Connection conn = DBUtil.getConnection(); Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
+while (rs.next()) { list.add(new Student(
+rs.getInt("student_id"), rs.getString("roll_no"),
+ 
+rs.getString("name"), rs.getString("section")
+));
+}
+} catch (SQLException e) { e.printStackTrace();
+}
+return list;
+}
+public int getStudentIdByRoll(String rollNo) {
+final String sql = "SELECT student_id FROM students WHERE roll_no=? LIMIT 1"; try (Connection conn = DBUtil.getConnection();
+PreparedStatement ps = conn.prepareStatement(sql)) { ps.setString(1, rollNo);
+ResultSet rs = ps.executeQuery(); if (rs.next()) return rs.getInt(1);
+} catch (SQLException e) { e.printStackTrace();
+}
+return -1;
+}
+}
+
+
+
+
+Hall.java
+Represents exam hall details including hall name and capacity.
+package com.example;
+
+
+public class Hall { private int id; private String name; private int capacity;
+ 
+public Hall(String name, int capacity) { this.name = name;
+this.capacity = capacity;
+}
+
+
+public Hall(int id, String name, int capacity) { this.id = id;
+this.name = name; this.capacity = capacity;
+}
+
+
+public int getId() { return id; }
+public void setId(int id) { this.id = id; }
+
+
+public String getName() { return name; }
+public void setName(String name) { this.name = name; }
+
+
+public int getCapacity() { return capacity; }
+public void setCapacity(int capacity) { this.capacity = capacity; }
+
+
+@Override
+public String toString() {
+return name + " (Cap: " + capacity + ")";
+}
+}
+HallDAO.java
+Handles database operations for the halls table.
+package com.example;
+
+
+import java.sql.*; import java.util.*;
+ 
+public class HallDAO {
+
+
+public void addHall(Hall h) {
+String sql = "INSERT INTO halls (hall_name, capacity) VALUES (?, ?)"; try (Connection conn = DBUtil.getConnection();
+PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+ps.setString(1, h.getName()); ps.setInt(2, h.getCapacity()); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) h.setId(rs.getInt(1));
+}
+} catch (SQLException e) { e.printStackTrace();
+}
+}
+
+
+public List<Hall> getAllHalls() { List<Hall> list = new ArrayList<>();
+String sql = "SELECT hall_id, hall_name, capacity FROM halls ORDER BY hall_id"; try (Connection conn = DBUtil.getConnection();
+Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) { while (rs.next()) {
+list.add(new Hall( rs.getInt("hall_id"), rs.getString("hall_name"), rs.getInt("capacity")
+));
+}
+} catch (SQLException e) {
+ 
+e.printStackTrace();
+}
+return list;
+}
+}
+SeatingAllocator.java
+Implements logic to allocate seats to students based on available hall capacities.
+package com.example;
+
+
+import java.util.*;
+
+
+public class SeatingAllocator {
+
+
+public static class SeatAssignment { public String hallName;
+public int seatNo; public String rollNo; public String name;
+public String department;
+
+
+public SeatAssignment(String hallName, int seatNo, String rollNo, String name, String department) {
+this.hallName = hallName; this.seatNo = seatNo; this.rollNo = rollNo; this.name = name; this.department = department;
+}
+}
+
+
+public List<SeatAssignment> allocate(List<Student> students, List<Hall> halls) { List<SeatAssignment> assigned = new ArrayList<>();
+int studentIndex = 0;
+ 
+for (Hall h : halls) {
+for (int seat = 1; seat <= h.getCapacity() && studentIndex < students.size(); seat++) { Student s = students.get(studentIndex++);
+assigned.add(new SeatAssignment(h.getName(), seat, s.getRollNo(), s.getName(), s.getDepartment()));
+}
+}
+return assigned;
+}
+}
+SeatingPlanDAO.java
+Manages database insertion of exam plans and seat assignments.
+package com.example; import java.sql.*;
+import java.util.HashMap; import java.util.List; import java.util.Map;
+public class SeatingPlanDAO {
+private final StudentDAO studentDAO = new StudentDAO(); private final HallDAO hallDAO = new HallDAO();
+public int createPlanAndSaveAssignments(String examName, List<SeatingAllocator.SeatAssignment> assignments) throws Exception {
+Connection con = null; try {
+con = DBUtil.getConnection(); con.setAutoCommit(false);
+int examId = createExam(con, examName, assignments.size());
+int planId = createSeatingPlan(con, examId, "Admin", "Auto-generated"); Map<String, Integer> hallNameToId = new HashMap<>();
+List<Hall> halls = hallDAO.getAllHalls();
+for (Hall h : halls) hallNameToId.put(h.getName(), h.getId());
+final String sql = "INSERT INTO seat_assignments (plan_id, student_id, hall_id, seat_no) VALUES (?, ?, ?, ?)";
+ 
+try (PreparedStatement ps = con.prepareStatement(sql)) { for (SeatingAllocator.SeatAssignment a : assignments) {
+int studentId = studentDAO.getStudentIdByRoll(a.rollNo); Integer hallId = hallNameToId.get(a.hallName);
+if (studentId > 0 && hallId != null) { ps.setInt(1, planId);
+ps.setInt(2, studentId); ps.setInt(3, hallId); ps.setInt(4, a.seatNo); ps.addBatch();
+}
+}
+ps.executeBatch();
+}
+con.commit(); return planId;
+} catch (Exception ex) {
+if (con != null) con.rollback(); throw ex;
+} finally {
+if (con != null) { con.setAutoCommit(true); con.close(); }
+}
+}
+private int createExam(Connection con, String name, int total) throws SQLException { String sql = "INSERT INTO exams (exam_name, exam_date, total_students) VALUES (?,
+CURDATE(), ?)";
+try (PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+ps.setString(1, name); ps.setInt(2, total); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) return rs.getInt(1); }
+}
+ 
+return -1;
+}
+private int createSeatingPlan(Connection con, int examId, String createdBy, String notes) throws SQLException {
+String sql = "INSERT INTO seating_plans (exam_id, created_by, notes) VALUES (?, ?, ?)"; try (PreparedStatement ps = con.prepareStatement(sql,
+Statement.RETURN_GENERATED_KEYS)) {
+ps.setInt(1, examId); ps.setString(2, createdBy); ps.setString(3, notes); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) return rs.getInt(1); }
+}
+return -1;
+}
+}
+SeatingGUI.java
+Provides Java Swing GUI for adding students and halls, allocating seats, displaying results, and saving seating plans to the MySQL database.
+package com.example; import javax.swing.*;
+import javax.swing.table.DefaultTableModel; import java.awt.*;
+import java.sql.*;
+import java.util.HashMap; import java.util.List; import java.util.Map;
+public class SeatingGUI extends JFrame {
+// UI fields
+private JTextField rollField; private JTextField nameField; private JTextField deptField; private JTextField hallField; private JTextField capField; private JTable table;
+ 
+private JTextArea logArea;
+private final StudentDAO studentDAO = new StudentDAO(); private final HallDAO hallDAO = new HallDAO();
+public SeatingGUI() {
+setTitle("Exam Hall Seating Arrangement"); setSize(980, 620); setDefaultCloseOperation(EXIT_ON_CLOSE); setLocationRelativeTo(null);
+initComponents();
+}
+private void initComponents() {
+// Left column: inputs and buttons JPanel leftPanel = new JPanel();
+leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS)); leftPanel.setPreferredSize(new Dimension(360, 0));
+JPanel studentPanel = new JPanel(new GridLayout(4, 2, 6, 6)); studentPanel.setBorder(BorderFactory.createTitledBorder("Add Student")); rollField = new JTextField();
+nameField = new JTextField(); deptField = new JTextField();
+JButton addStudentBtn = new JButton("Add Student"); studentPanel.add(new JLabel("Roll No:")); studentPanel.add(rollField);
+studentPanel.add(new JLabel("Name:")); studentPanel.add(nameField); studentPanel.add(new JLabel("Department:")); studentPanel.add(deptField); studentPanel.add(new JLabel()); studentPanel.add(addStudentBtn);
+JPanel hallPanel = new JPanel(new GridLayout(3, 2, 6, 6)); hallPanel.setBorder(BorderFactory.createTitledBorder("Add Hall")); hallField = new JTextField();
+capField = new JTextField();
+JButton addHallBtn = new JButton("Add Hall"); hallPanel.add(new JLabel("Hall Name:")); hallPanel.add(hallField);
+ 
+hallPanel.add(new JLabel("Capacity:")); hallPanel.add(capField); hallPanel.add(new JLabel()); hallPanel.add(addHallBtn);
+JButton allocateBtn = new JButton("Allocate Seats"); leftPanel.add(studentPanel); leftPanel.add(Box.createRigidArea(new Dimension(0, 8))); leftPanel.add(hallPanel); leftPanel.add(Box.createRigidArea(new Dimension(0, 8))); leftPanel.add(allocateBtn);
+DefaultTableModel model = new DefaultTableModel(
+new Object[]{"Hall", "Seat No", "Roll No", "Name", "Department"}, 0) { @Override
+public boolean isCellEditable(int row, int column) { return false;
+}
+};
+table = new JTable(model);
+JScrollPane tableScroll = new JScrollPane(table); logArea = new JTextArea(6, 10); logArea.setEditable(false);
+JScrollPane logScroll = new JScrollPane(logArea); logScroll.setBorder(BorderFactory.createTitledBorder("Log")); getContentPane().setLayout(new BorderLayout(8, 8)); getContentPane().add(leftPanel, BorderLayout.WEST); getContentPane().add(tableScroll, BorderLayout.CENTER); getContentPane().add(logScroll, BorderLayout.SOUTH); addStudentBtn.addActionListener(e -> addStudentToDB()); addHallBtn.addActionListener(e -> addHallToDB()); allocateBtn.addActionListener(e -> allocateSeatsNow());
+}
+private void addStudentToDB() {
+String roll = rollField.getText().trim(); String name = nameField.getText().trim(); String dept = deptField.getText().trim();
+ 
+if (roll.isEmpty() || name.isEmpty() || dept.isEmpty()) {
+appendLog("+ Please fill all student fields."); return;
+}
+try {
+Student s = new Student(roll, name, dept); studentDAO.addStudent(s);
+appendLog("⬛✓ Added Student: " + s.toString()); rollField.setText("");
+nameField.setText(""); deptField.setText("");
+} catch (Exception ex) {
+appendLog("+ Error adding student: " + ex.getMessage()); ex.printStackTrace();
+}
+}
+private void addHallToDB() {
+String hallName = hallField.getText().trim(); String capText = capField.getText().trim();
+if (hallName.isEmpty() || capText.isEmpty()) {
+appendLog("+ Please fill all hall fields."); return;
+}
+try {
+int cap = Integer.parseInt(capText); Hall h = new Hall(hallName, cap); hallDAO.addHall(h);
+appendLog("⬛✓ Added Hall: " + h.toString()); hallField.setText("");
+capField.setText("");
+} catch (NumberFormatException nfe) { appendLog(" ị Capacity must be a number.");
+} catch (Exception ex) {
+appendLog("+ Error adding hall: " + ex.getMessage()); ex.printStackTrace();
+}
+ 
+}
+private void allocateSeatsNow() { try {
+List<Student> students = studentDAO.getAllStudents(); List<Hall> halls = hallDAO.getAllHalls();
+if (students.isEmpty()) {
+appendLog(" ị No students to allocate."); return;
+}
+if (halls.isEmpty()) {
+appendLog(" ị No halls available."); return;
+}
+SeatingAllocator allocator = new SeatingAllocator(); List<SeatingAllocator.SeatAssignment> assignments = allocator.allocate(students, halls); DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
+for (SeatingAllocator.SeatAssignment a : assignments) {
+model.addRow(new Object[]{a.hallName, a.seatNo, a.rollNo, a.name, a.department});
+}
+appendLog(" u◆r· Total Students: " + students.size() + ", Assigned: " + assignments.size()); saveAssignmentsToDB(assignments, students.size());
+} catch (Exception ex) {
+appendLog("+ Allocation error: " + ex.getMessage()); ex.printStackTrace();
+}
+}
+private void saveAssignmentsToDB(List<SeatingAllocator.SeatAssignment> assignments, int totalStudents) { Connection con = null;
+try {
+con = DBUtil.getConnection(); con.setAutoCommit(false);
+// 1) create exam int examId;
+String examSQL = "INSERT INTO exams (exam_name, exam_date, total_students) VALUES (?, CURDATE(), ?)"; try (PreparedStatement ps = con.prepareStatement(examSQL, Statement.RETURN_GENERATED_KEYS)) {
+ 
+ps.setString(1, "AutoExam"); ps.setInt(2, totalStudents); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) examId = rs.getInt(1);
+else throw new SQLException("Failed to create exam (no id generated).");
+}
+}
+// 2) create seating plan int planId;
+String planSQL = "INSERT INTO seating_plans (exam_id, created_by, notes) VALUES (?, ?, ?)";
+try (PreparedStatement ps = con.prepareStatement(planSQL, Statement.RETURN_GENERATED_KEYS)) { ps.setInt(1, examId);
+ps.setString(2, "Admin"); ps.setString(3, "Auto-generated plan"); ps.executeUpdate();
+try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) planId = rs.getInt(1);
+else throw new SQLException("Failed to create seating plan (no id).");
+}
+}
+// 3) prepare mapping hallName -> hallId (so we avoid extra DB lookups inside loop) Map<String, Integer> hallNameToId = new HashMap<String, Integer>();
+List<Hall> halls = hallDAO.getAllHalls(); for (Hall h : halls) {
+hallNameToId.put(h.getName(), h.getId());
+}
+// 4) insert assignments
+String assignSQL = "INSERT INTO seat_assignments (plan_id, student_id, hall_id, seat_no) VALUES (?, ?, ?, ?)"; try (PreparedStatement ps = con.prepareStatement(assignSQL)) {
+for (SeatingAllocator.SeatAssignment a : assignments) {
+int studentId = studentDAO.getStudentIdByRoll(a.rollNo); if (studentId <= 0) {
+// skip or warn
+System.out.println("WARN: unknown student roll " + a.rollNo + " - skipping DB insert for this record."); continue;
+ 
+}
+Integer hallId = hallNameToId.get(a.hallName); if (hallId == null) {
+// try reloading halls once
+List<Hall> refreshed = hallDAO.getAllHalls(); hallNameToId.clear();
+for (Hall hh : refreshed) hallNameToId.put(hh.getName(), hh.getId()); hallId = hallNameToId.get(a.hallName);
+if (hallId == null) throw new SQLException("Unknown hall name: " + a.hallName);
+}
+ps.setInt(1, planId); ps.setInt(2, studentId); ps.setInt(3, hallId); ps.setInt(4, a.seatNo); ps.addBatch();
+}
+int[] results = ps.executeBatch();
+appendLog("⬛✓ Saved " + results.length + " seat assignments to DB (planId=" + planId + ")");
+}
+con.commit();
+} catch (Exception ex) {
+appendLog("+ Error saving seating plan: " + ex.getMessage()); ex.printStackTrace();
+if (con != null) { try {
+con.rollback();
+appendLog("⬛  Transaction rolled back.");
+} catch (SQLException se) { se.printStackTrace();
+}
+}
+} finally {
+if (con != null) {
+try { con.setAutoCommit(true); con.close(); } catch (SQLException ignored) {}
+}
+}
+ 
+}
+private void appendLog(String s) { logArea.append(s + "\n");
+}
+public static void main(String[] args) {
+// Swing UI thread SwingUtilities.invokeLater(new Runnable() {
+public void run() {
+SeatingGUI gui = new SeatingGUI(); gui.setVisible(true);
+}
+});
+}
+}
